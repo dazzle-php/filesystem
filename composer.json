@@ -2,7 +2,7 @@
     "name": "dazzle-php/filesystem",
     "description": "Dazzle Asynchronous Filesystem.",
     "keywords": [
-        "dazzle", "dazzle-php", "async", "filesystem", "file", "storage"
+        "dazzle", "dazzle-php", "async", "filesystem", "file", "storage", "eio", "lib-eio", "uv", "lib-uv"
     ],
     "license": "MIT",
     "support": {
