@@ -2,19 +2,15 @@
 
 namespace Dazzle\Filesystem\Driver;
 
+use Dazzle\Filesystem\Driver\Flag\FlagOpenResolver;
+use Dazzle\Filesystem\Driver\Flag\FlagPermissionResolver;
+use Dazzle\Filesystem\Driver\Flag\FlagResolverInterface;
 use Dazzle\Loop\LoopAwareTrait;
 use Dazzle\Promise\PromiseInterface;
-use Dazzle\Throwable\Exception\Runtime\ReadException;
-use DateTimeImmutable;
 
 abstract class DriverAbstract
 {
     use LoopAwareTrait;
-
-    /**
-     * @var array
-     */
-    protected $options;
 
     /**
      * @internal
@@ -25,47 +21,18 @@ abstract class DriverAbstract
     abstract public function call($func, $args = []);
 
     /**
-     * Handle stat command.
-     *
-     * @internal
+     * @return FlagResolverInterface
      */
-    public function handleStat($info)
+    protected function createFlagPermissionResolver()
     {
-        if (!$info && $this->options['output.control'])
-        {
-            throw new ReadException('Function stat() failed on given node!');
-        }
-        $info['atime'] && $info['atime'] = new DateTimeImmutable('@' . $info['atime']);
-        $info['mtime'] && $info['mtime'] = new DateTimeImmutable('@' . $info['mtime']);
-        $info['ctime'] && $info['ctime'] = new DateTimeImmutable('@' . $info['ctime']);
-        return $info;
+        return new FlagPermissionResolver();
     }
 
     /**
-     * Handle stat command.
-     *
-     * @internal
+     * @return FlagResolverInterface
      */
-    public function handleChmod($info)
+    protected function createFlagOpenResolver()
     {
-        if (!$info && $this->options['output.control'])
-        {
-            throw new ReadException('Function chmod() failed on given node!');
-        }
-        return $info;
-    }
-
-    /**
-     * Handle stat command.
-     *
-     * @internal
-     */
-    public function handleChown($stat)
-    {
-        if (!$stat && $this->options['output.control'])
-        {
-            throw new ReadException('Function stat() failed on given node!');
-        }
-        return $stat;
+        return new FlagOpenResolver();
     }
 }

@@ -2,16 +2,22 @@
 
 namespace Dazzle\Filesystem\Driver;
 
+use Dazzle\Filesystem\Driver\Flag\FlagResolverInterface;
 use Dazzle\Filesystem\Invoker\InvokerInterface;
 use Dazzle\Filesystem\Invoker\InvokerStandard;
 use Dazzle\Loop\LoopInterface;
 use Dazzle\Promise\Promise;
 use Dazzle\Promise\PromiseInterface;
 use Dazzle\Throwable\Exception\Runtime\ExecutionException;
-use Dazzle\Throwable\Exception\Runtime\UnexpectedValueException;
+use DateTimeImmutable;
 
 class DriverEio extends DriverAbstract implements DriverInterface
 {
+    /**
+     * @var array
+     */
+    protected $options;
+
     /**
      * @var InvokerInterface
      */
@@ -28,6 +34,16 @@ class DriverEio extends DriverAbstract implements DriverInterface
     protected $active = false;
 
     /**
+     * @var FlagResolverInterface
+     */
+    protected $flagPermission;
+
+    /**
+     * @var FlagResolverInterface
+     */
+    protected $flagOpen;
+
+    /**
      * @param LoopInterface $loop
      * @param array $options
      */
@@ -38,17 +54,26 @@ class DriverEio extends DriverAbstract implements DriverInterface
         $this->options = $this->createConfiguration($options);
         $this->invoker = $this->createInvoker();
         $this->stream = eio_get_event_stream();
+        $this->flagPermission = $this->createFlagPermissionResolver();
+        $this->flagOpen = $this->createFlagOpenResolver();
     }
 
     /**
      * @override
      * @inheritDoc
      */
-    public function stat($path)
+    public function access($path, $mode = 0755)
     {
-        return $this->invoker
-            ->call('eio_lstat', [ $this->getPath($path) ])
-            ->then([ $this, 'handleStat' ]);
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function append($path, $data = '')
+    {
+        // TODO
     }
 
     /**
@@ -57,8 +82,7 @@ class DriverEio extends DriverAbstract implements DriverInterface
      */
     public function chmod($path, $mode)
     {
-        return $this->invoker
-            ->call('eio_chmod', [ $this->getPath($path), decoct($mode) ])
+        return $this->invoker->call('eio_chmod', [ $this->getPath($path), decoct($mode) ])
             ->then([ $this, 'handleChmod' ]);
     }
 
@@ -68,9 +92,138 @@ class DriverEio extends DriverAbstract implements DriverInterface
      */
     public function chown($path, $uid = -1, $gid = -1)
     {
-        return $this->invoker
-            ->call('eio_chown', [ $this->getPath($path), $uid, $gid ])
+        return $this->invoker->call('eio_chown', [ $this->getPath($path), $uid, $gid ])
             ->then([ $this, 'handleChown' ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function exists($path)
+    {
+        return $this->stat($path)
+            ->then(
+                function() { return true; },
+                function() { return false; }
+            );
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function link($srcPath, $dstPath)
+    {
+        return $this->invoker->call('eio_link', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function ls($path)
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function mkdir($path, $mode = 0755)
+    {
+        return $this->invoker->call('eio_mkdir', [ $this->getPath($path), $this->flagPermission->resolve($mode) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function prepend($path, $data = '')
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function readlink($path)
+    {
+        return $this->invoker->call('eio_readlink', [ $this->getPath($path) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function realpath($path)
+    {
+        return $this->invoker->call('eio_realpath', [ $this->getPath($path) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function rename($srcPath, $dstPath)
+    {
+        return $this->invoker->call('eio_rename', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function rmdir($path)
+    {
+        return $this->invoker->call('eio_rmdir', [ $this->getPath($path) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function stat($path)
+    {
+        return $this->invoker->call('eio_lstat', [ $this->getPath($path) ])
+            ->then(function($info) {
+                if ($info)
+                {
+                    $info['atime'] && $info['atime'] = new DateTimeImmutable('@' . $info['atime']);
+                    $info['mtime'] && $info['mtime'] = new DateTimeImmutable('@' . $info['mtime']);
+                    $info['ctime'] && $info['ctime'] = new DateTimeImmutable('@' . $info['ctime']);
+                }
+                return $info;
+            });
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function symlink($srcPath, $dstPath)
+    {
+        return $this->invoker->call('eio_symlink', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function truncate($path, $len = 0)
+    {
+        return $this->invoker->call('eio_truncate', [ $this->getPath($path), $len ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function unlink($path)
+    {
+        return $this->invoker->call('eio_unlink', [ $this->getPath($path) ]);
     }
 
     /**
@@ -118,7 +271,7 @@ class DriverEio extends DriverAbstract implements DriverInterface
 
             if ($result == -1)
             {
-                $ex = new UnexpectedValueException(@eio_get_last_error($req));
+                $ex = new ExecutionException(@eio_get_last_error($req));
                 $ex->setContext($args);
                 return $promise->reject($ex);
             }
@@ -202,7 +355,6 @@ class DriverEio extends DriverAbstract implements DriverInterface
         return array_merge([
             'root' => '',
             'invoker.class' => InvokerStandard::class,
-            'output.control' => false,
         ], $options);
     }
 

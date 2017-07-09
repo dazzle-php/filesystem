@@ -4,14 +4,14 @@
  * ---------------------------------------------------------------------------------------------------------------------
  * DESCRIPTION
  * ---------------------------------------------------------------------------------------------------------------------
- * This file contains the example of using chown() with Filesystem.
+ * This file contains the example of using stat() with Filesystem.
  *
  * ---------------------------------------------------------------------------------------------------------------------
  * USAGE
  * ---------------------------------------------------------------------------------------------------------------------
  * To run this example in CLI from project root use following syntax
  *
- * $> php ./example/file_chown.php
+ * $> php ./example/node_stat.php
  *
  * Following flags are supported to test example with different configurations:
  *
@@ -19,7 +19,7 @@
  * --invoker : define invoker to use, default: standard, supported: [ standard, queue ]
  *
  * Ex:
- * $> php ./example/file_chown.php --driver=standard --invoker=standard
+ * $> php ./example/node_stat.php --driver=standard --invoker=standard
  *
  * ---------------------------------------------------------------------------------------------------------------------
  */
@@ -39,13 +39,18 @@ $fsm = new Filesystem(
 
 $process = function() use($loop, $fsm) {
     $fsm
-        ->chown('_file_read.txt', 1000, 1000)
-        ->then(function($result) {
-            var_export($result);
-            echo PHP_EOL;
+        ->stat('_file_read.txt')
+        ->then(function($data) {
+            if (!$data) {
+                throw new \Exception('File could not be scanned!');
+            }
+            foreach ($data as $key => $value)
+            {
+                echo sprintf("%s: %s\n", $key, var_export($value, true));
+            }
         })
         ->failure(function($ex) {
-            echo $ex->getMessage() . PHP_EOL;
+            echo (string) $ex . PHP_EOL;
         })
         ->done(function() use($loop) {
             $loop->stop();

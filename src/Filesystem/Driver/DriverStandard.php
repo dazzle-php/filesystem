@@ -2,19 +2,31 @@
 
 namespace Dazzle\Filesystem\Driver;
 
+use Dazzle\Filesystem\Driver\Flag\FlagResolverInterface;
 use Dazzle\Filesystem\Invoker\InvokerInterface;
 use Dazzle\Filesystem\Invoker\InvokerStandard;
 use Dazzle\Loop\LoopInterface;
 use Dazzle\Promise\Promise;
+use DateTimeImmutable;
 use Error;
 use Exception;
 
 class DriverStandard extends DriverAbstract implements DriverInterface
 {
     /**
+     * @var array
+     */
+    protected $options;
+
+    /**
      * @var InvokerInterface
      */
     protected $invoker;
+
+    /**
+     * @var FlagResolverInterface
+     */
+    protected $flagPermission;
 
     /**
      * @param LoopInterface $loop
@@ -25,6 +37,128 @@ class DriverStandard extends DriverAbstract implements DriverInterface
         $this->loop = $loop;
         $this->options = $this->createConfiguration($options);
         $this->invoker = $this->createInvoker();
+        $this->flagPermission = $this->createFlagPermissionResolver();
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function access($path, $mode = 0755)
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function append($path, $data = '')
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function chmod($path, $mode)
+    {
+        return $this->invoker->call('chmod', [ $this->getPath($path), decoct($mode) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function chown($path, $uid = -1, $gid = -1)
+    {
+        return $this->invoker->call('chown', [ $this->getPath($path), $uid, $gid ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function exists($path)
+    {
+        return $this->stat($path)
+            ->then(
+                function() { return true; },
+                function() { return false; }
+            );
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function link($srcPath, $dstPath)
+    {
+        return $this->invoker->call('link', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function ls($path)
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function mkdir($path, $mode = 0755)
+    {
+        return $this->invoker->call('mkdir', [ $this->getPath($path), decoct($this->flagPermission->resolve($mode)) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function prepend($path, $data = '')
+    {
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function readlink($path)
+    {
+        return $this->invoker->call('readlink', [ $this->getPath($path) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function realpath($path)
+    {
+        return $this->invoker->call('realpath', [ $this->getPath($path) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function rename($srcPath, $dstPath)
+    {
+        return $this->invoker->call('rename', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function rmdir($path)
+    {
+        return $this->invoker->call('rmdir', [ $this->getPath($path) ]);
     }
 
     /**
@@ -35,34 +169,47 @@ class DriverStandard extends DriverAbstract implements DriverInterface
     {
         return $this->invoker
             ->call('stat', [ $this->getPath($path) ])
-            ->then(function($stat) {
-                return $stat ? array_filter($stat, function($statKey) {
-                    return !is_numeric($statKey);
-                }, ARRAY_FILTER_USE_KEY) : $stat;
+            ->then(function($info) {
+                return $info ? array_filter($info, function($infoKey) {
+                    return !is_numeric($infoKey);
+                }, ARRAY_FILTER_USE_KEY) : $info;
             })
-            ->then([ $this, 'handleStat' ]);
+            ->then(function($info) {
+                if ($info)
+                {
+                    $info['atime'] && $info['atime'] = new DateTimeImmutable('@' . $info['atime']);
+                    $info['mtime'] && $info['mtime'] = new DateTimeImmutable('@' . $info['mtime']);
+                    $info['ctime'] && $info['ctime'] = new DateTimeImmutable('@' . $info['ctime']);
+                }
+                return $info;
+            });
     }
 
     /**
      * @override
      * @inheritDoc
      */
-    public function chmod($path, $mode)
+    public function symlink($srcPath, $dstPath)
     {
-        return $this->invoker
-            ->call('chmod', [ $this->getPath($path), decoct($mode) ])
-            ->then([ $this, 'handleChmod' ]);
+        return $this->invoker->call('symlink', [ $this->getPath($srcPath), $this->getPath($dstPath) ]);
     }
 
     /**
      * @override
      * @inheritDoc
      */
-    public function chown($path, $uid = -1, $gid = -1)
+    public function truncate($path, $len = 0)
     {
-        return $this->invoker
-            ->call('chown', [ $this->getPath($path), $uid, $gid ])
-            ->then([ $this, 'handleChown' ]);
+        // TODO
+    }
+
+    /**
+     * @override
+     * @inheritDoc
+     */
+    public function unlink($path)
+    {
+        return $this->invoker->call('unlink', [ $this->getPath($path) ]);
     }
 
     /**
@@ -108,7 +255,6 @@ class DriverStandard extends DriverAbstract implements DriverInterface
         return array_merge([
             'root' => '',
             'invoker.class' => InvokerStandard::class,
-            'output.control' => false,
         ], $options);
     }
 
